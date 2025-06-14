@@ -1,0 +1,50 @@
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local function getLowestPopulationServer()
+	local placeId = game.PlaceId
+	local nextPageCursor = ""
+	local lowestJobId = nil
+	local lowestCount = math.huge
+
+	repeat
+		local url = ("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100&cursor=%s"):format(placeId, nextPageCursor)
+		local success, response = pcall(function()
+			return HttpService:JSONDecode(game:HttpGet(url))
+		end)
+
+		if success and response and response.data then
+			for _, server in ipairs(response.data) do
+				if server.playing < lowestCount and server.id ~= game.JobId then
+					lowestCount = server.playing
+					lowestJobId = server.id
+				end
+			end
+			nextPageCursor = response.nextPageCursor or ""
+		else
+			break
+		end
+	until nextPageCursor == nil or nextPageCursor == ""
+
+	return lowestJobId
+end
+
+local function checkAndRejoin()
+	local combatLog = PlayerGui:WaitForChild("Hotbar"):WaitForChild("HotbarHolder"):WaitForChild("List"):WaitForChild("HotbarCombatLogging")
+
+	combatLog:GetPropertyChangedSignal("Visible"):Connect(function()
+		if not combatLog.Visible then
+			local lowPopServer = getLowestPopulationServer()
+			if lowPopServer then
+				TeleportService:TeleportToPlaceInstance(game.PlaceId, lowPopServer, LocalPlayer)
+			else
+				warn("ไม่พบเซิร์ฟเวอร์ที่คนน้อย")
+			end
+		end
+	end)
+end
+
+checkAndRejoin()
