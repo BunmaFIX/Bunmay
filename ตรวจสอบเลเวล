@@ -1,0 +1,80 @@
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+local webhookUrl = "https://discord.com/api/webhooks/1381336009563701348/QAaBTBbwk3hj-zgH8Gc01V_9UIxwl7WyVUNM2Tp5meMZcWHjKbqk-XCCJPcyt8FJdIN-"
+
+local gui = LocalPlayer:WaitForChild("PlayerGui")
+local skillsGui = gui:WaitForChild("Skills")
+local holder = skillsGui:WaitForChild("SkillsHolder")
+local scroll = holder:WaitForChild("SkillsScrollingFrame")
+local skillOptionTemplate = scroll:WaitForChild("SkillOptionTemplate")
+
+local skillDataList = {}
+
+for _, child in ipairs(scroll:GetChildren()) do
+	if child ~= skillOptionTemplate then
+		local skillTitle = child:FindFirstChild("SkillTitle")
+		local xpText = nil
+		
+		-- พยายามหา SkillBarAmount ตามโครงสร้างที่ให้มา
+		-- สมมติ SkillBarAmount อยู่ลึกใน PaddingFrame > XPBar > SkillBarAmount
+		local paddingFrame = child:FindFirstChild("PaddingFrame")
+		if paddingFrame then
+			local xpBar = paddingFrame:FindFirstChild("XPBar")
+			if xpBar then
+				local skillBarAmount = xpBar:FindFirstChild("SkillBarAmount")
+				if skillBarAmount and skillBarAmount:IsA("TextLabel") then
+					xpText = skillBarAmount.Text
+				end
+			end
+		end
+		
+		if skillTitle and skillTitle:IsA("TextLabel") then
+			local text = skillTitle.Text
+			if text and text ~= "" then
+				local cleanedText = text:gsub("Total", ""):gsub("Character", ""):gsub("^%s+", ""):gsub("%s+$", "")
+				if cleanedText ~= "" then
+					table.insert(skillDataList, {
+						name = cleanedText,
+						xp = xpText or "ไม่มีข้อมูล EXP"
+					})
+				end
+			end
+		end
+	end
+end
+
+if #skillDataList > 0 then
+	local descriptionLines = {}
+	for i, skillData in ipairs(skillDataList) do
+		table.insert(descriptionLines, string.format("%d. %s — EXP: %s", i, skillData.name, skillData.xp))
+	end
+	local descriptionText = table.concat(descriptionLines, "\n")
+
+	local data = {
+		embeds = {{
+			title = "🌟 รีวิว Skill ของผู้เล่น: " .. LocalPlayer.Name,
+			description = descriptionText,
+			color = 0x1ABC9C,
+			timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+		}}
+	}
+
+	local success, err = pcall(function()
+		return http.request({
+			Url = webhookUrl,
+			Method = "POST",
+			Headers = { ["Content-Type"] = "application/json" },
+			Body = HttpService:JSONEncode(data)
+		})
+	end)
+
+	if success then
+		print("ส่งข้อความรีวิวสกิลและ EXP ไป Discord เรียบร้อย")
+	else
+		warn("ส่งข้อความไม่สำเร็จ: " .. tostring(err))
+	end
+else
+	print("ไม่พบสกิลที่จะแสดงผล")
+end
